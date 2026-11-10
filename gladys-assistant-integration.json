@@ -1,177 +1,637 @@
 {
   "manifest_version": 1,
   "type": "device",
-  "name": "Demo Devices Template",
+  "name": "AI-on-the-edge",
   "description": {
-    "en": "Starter template showing sensors, a switch, a dimmable light and a smart plug.",
-    "fr": "Template de démarrage : capteurs, interrupteur, lampe variable et prise connectée."
+    "en": "Water, gas and electricity meters read by an ESP32-CAM with AI-on-the-edge-device.",
+    "fr": "Compteurs d'eau, de gaz et d'électricité lus par une ESP32-CAM avec AI-on-the-edge-device.",
+    "de": "Wasser-, Gas- und Stromzähler, von einer ESP32-CAM mit AI-on-the-edge-device abgelesen.",
+    "es": "Contadores de agua, gas y electricidad leídos por una ESP32-CAM con AI-on-the-edge-device."
   },
   "version": "1.0.0",
-  "docker_image": "ghcr.io/gladysassistant/integration-template-js:1.0.0",
+  "docker_image": "ghcr.io/guim31/gladys-ai-on-the-edge:1.0.0",
   "gladys_version": ">=5.1.0",
-  "cover_image": "https://raw.githubusercontent.com/GladysAssistant/integration-template-js/master/cover.png",
-  "categories": ["lighting", "security", "environment"],
-  "transports": ["local", "cloud"],
+  "cover_image": "https://raw.githubusercontent.com/guim31/gladys-ai-on-the-edge/main/cover.png",
+  "categories": ["energy", "security"],
+  "transports": ["local"],
   "config_schema": [
     {
       "key": "intro",
       "type": "section",
-      "label": { "en": "Getting started", "fr": "Pour commencer" },
+      "label": {
+        "en": "Connect AI-on-the-edge-device",
+        "fr": "Connecter AI-on-the-edge-device",
+        "de": "AI-on-the-edge-device verbinden",
+        "es": "Conectar AI-on-the-edge-device"
+      },
       "description": {
-        "en": "The demo weather station reads real data from the free Open-Meteo API: pick the coordinates to observe. No account, no API key.",
-        "fr": "La station météo de démonstration lit de vraies données via l'API gratuite Open-Meteo : choisissez les coordonnées à observer. Pas de compte, pas de clé d'API."
+        "en": "An ESP32-CAM photographs the meter and reads its digits with a neural network. Gladys gets the readings over MQTT (preferred: the device publishes after each round) or by polling its REST API. Fill in one of the two, or both for different devices.",
+        "fr": "Une ESP32-CAM photographie le compteur et lit ses chiffres par réseau de neurones. Gladys reçoit les relevés par MQTT (conseillé : l'appareil publie après chaque cycle) ou en interrogeant son API REST. Remplissez l'un des deux, ou les deux pour des appareils différents.",
+        "de": "Eine ESP32-CAM fotografiert den Zähler und liest seine Ziffern mit einem neuronalen Netz. Gladys erhält die Werte per MQTT (empfohlen: das Gerät sendet nach jedem Durchlauf) oder über seine REST-API. Füll eins von beiden aus, oder beide für verschiedene Geräte.",
+        "es": "Una ESP32-CAM fotografía el contador y lee sus cifras con una red neuronal. Gladys recibe las lecturas por MQTT (recomendado: el dispositivo publica tras cada ciclo) o consultando su API REST. Rellene uno de los dos, o ambos para dispositivos distintos."
       },
       "links": [
         {
-          "url": "https://open-meteo.com/en/docs",
-          "label": { "en": "Open-Meteo documentation", "fr": "Documentation Open-Meteo" }
+          "url": "https://jomjol.github.io/AI-on-the-edge-device-docs/",
+          "label": {
+            "en": "AI-on-the-edge-device documentation",
+            "fr": "Documentation d'AI-on-the-edge-device",
+            "de": "Dokumentation von AI-on-the-edge-device",
+            "es": "Documentación de AI-on-the-edge-device"
+          }
         }
       ]
     },
     {
-      "key": "latitude",
-      "type": "number",
-      "label": { "en": "Latitude", "fr": "Latitude" },
-      "description": {
-        "en": "Latitude used for the demo weather sensor.",
-        "fr": "Latitude utilisée par le capteur météo de démonstration."
+      "key": "broker_url",
+      "type": "string",
+      "label": {
+        "en": "MQTT broker address",
+        "fr": "Adresse du broker MQTT",
+        "de": "Adresse des MQTT-Brokers",
+        "es": "Dirección del broker MQTT"
       },
-      "placeholder": { "en": "e.g. 48.8566", "fr": "ex. 48.8566" },
-      "required": true,
-      "default": 48.8566,
-      "min": -90,
-      "max": 90
+      "description": {
+        "en": "The broker set in the MQTT page of the device: mqtt:// (port 1883) or mqtts:// (port 8883). Leave empty to use REST only.",
+        "fr": "Le broker réglé dans la page MQTT de l'appareil : mqtt:// (port 1883) ou mqtts:// (port 8883). Laissez vide pour n'utiliser que REST.",
+        "de": "Der Broker aus der MQTT-Seite des Geräts: mqtt:// (Port 1883) oder mqtts:// (Port 8883). Leer lassen, um nur REST zu nutzen.",
+        "es": "El broker configurado en la página MQTT del dispositivo: mqtt:// (puerto 1883) o mqtts:// (puerto 8883). Déjelo vacío para usar solo REST."
+      },
+      "placeholder": {
+        "en": "e.g. mqtt://mosquitto.local:1883",
+        "fr": "ex. mqtt://mosquitto.local:1883",
+        "de": "z. B. mqtt://mosquitto.local:1883",
+        "es": "p. ej. mqtt://mosquitto.local:1883"
+      }
     },
     {
-      "key": "longitude",
-      "type": "number",
-      "label": { "en": "Longitude", "fr": "Longitude" },
-      "description": {
-        "en": "Longitude used for the demo weather sensor.",
-        "fr": "Longitude utilisée par le capteur météo de démonstration."
+      "key": "username",
+      "type": "string",
+      "label": {
+        "en": "User name",
+        "fr": "Nom d'utilisateur",
+        "de": "Benutzername",
+        "es": "Nombre de usuario"
       },
-      "placeholder": { "en": "e.g. 2.3522", "fr": "ex. 2.3522" },
-      "required": true,
-      "default": 2.3522,
-      "min": -180,
-      "max": 180
+      "description": {
+        "en": "Leave empty if the broker accepts anonymous clients.",
+        "fr": "Laissez vide si le broker accepte les clients anonymes.",
+        "de": "Leer lassen, wenn der Broker anonyme Clients zulässt.",
+        "es": "Déjelo vacío si el broker acepta clientes anónimos."
+      }
     },
     {
-      "key": "unit",
+      "key": "password",
+      "type": "secret",
+      "label": {
+        "en": "Password",
+        "fr": "Mot de passe",
+        "de": "Passwort",
+        "es": "Contraseña"
+      }
+    },
+    {
+      "key": "tls_insecure",
+      "type": "boolean",
+      "default": false,
+      "label": {
+        "en": "Accept a self-signed certificate",
+        "fr": "Accepter un certificat auto-signé",
+        "de": "Selbstsigniertes Zertifikat akzeptieren",
+        "es": "Aceptar un certificado autofirmado"
+      },
+      "description": {
+        "en": "mqtts:// only: the certificate of the broker is then not checked.",
+        "fr": "mqtts:// seulement : le certificat du broker n'est alors pas vérifié.",
+        "de": "Nur mqtts://: Das Zertifikat des Brokers wird dann nicht geprüft.",
+        "es": "Solo mqtts://: el certificado del broker no se comprueba."
+      }
+    },
+    {
+      "key": "main_topics",
+      "type": "string",
+      "default": "watermeter",
+      "label": {
+        "en": "Main topics",
+        "fr": "Sujets principaux",
+        "de": "Haupt-Topics",
+        "es": "Temas principales"
+      },
+      "description": {
+        "en": "The MainTopic of each device (MQTT page of the device), separated by commas: one device per topic.",
+        "fr": "Le MainTopic de chaque appareil (page MQTT de l'appareil), séparés par des virgules : un appareil par sujet.",
+        "de": "Das MainTopic jedes Geräts (MQTT-Seite des Geräts), durch Kommas getrennt: ein Gerät pro Topic.",
+        "es": "El MainTopic de cada dispositivo (página MQTT del dispositivo), separados por comas: un dispositivo por tema."
+      },
+      "placeholder": {
+        "en": "e.g. watermeter, gasmeter",
+        "fr": "ex. watermeter, gasmeter",
+        "de": "z. B. watermeter, gasmeter",
+        "es": "p. ej. watermeter, gasmeter"
+      }
+    },
+    {
+      "key": "rest",
+      "type": "section",
+      "label": {
+        "en": "REST API",
+        "fr": "API REST",
+        "de": "REST-API",
+        "es": "API REST"
+      },
+      "description": {
+        "en": "Without MQTT, the integration asks each device for its readings (/json, /rssi, /cpu_temperature, /statusflow) at the chosen pace, one request after the other.",
+        "fr": "Sans MQTT, l'intégration demande ses relevés à chaque appareil (/json, /rssi, /cpu_temperature, /statusflow) au rythme choisi, une requête après l'autre.",
+        "de": "Ohne MQTT fragt die Integration jedes Gerät im gewählten Takt nach seinen Werten (/json, /rssi, /cpu_temperature, /statusflow), eine Anfrage nach der anderen.",
+        "es": "Sin MQTT, la integración pide sus lecturas a cada dispositivo (/json, /rssi, /cpu_temperature, /statusflow) al ritmo elegido, una petición tras otra."
+      }
+    },
+    {
+      "key": "http_devices",
+      "type": "string",
+      "label": {
+        "en": "Device addresses",
+        "fr": "Adresses des appareils",
+        "de": "Adressen der Geräte",
+        "es": "Direcciones de los dispositivos"
+      },
+      "description": {
+        "en": "IP address or name of each device, separated by commas. Leave empty to use MQTT only.",
+        "fr": "Adresse IP ou nom de chaque appareil, séparés par des virgules. Laissez vide pour n'utiliser que MQTT.",
+        "de": "IP-Adresse oder Name jedes Geräts, durch Kommas getrennt. Leer lassen, um nur MQTT zu nutzen.",
+        "es": "Dirección IP o nombre de cada dispositivo, separados por comas. Déjelo vacío para usar solo MQTT."
+      },
+      "placeholder": {
+        "en": "e.g. 192.0.2.40, watermeter.local",
+        "fr": "ex. 192.0.2.40, watermeter.local",
+        "de": "z. B. 192.0.2.40, watermeter.local",
+        "es": "p. ej. 192.0.2.40, watermeter.local"
+      }
+    },
+    {
+      "key": "http_username",
+      "type": "string",
+      "label": {
+        "en": "Web interface user name",
+        "fr": "Utilisateur de l'interface web",
+        "de": "Benutzer der Weboberfläche",
+        "es": "Usuario de la interfaz web"
+      },
+      "description": {
+        "en": "Only if the web interface of the devices is protected by a password.",
+        "fr": "Seulement si l'interface web des appareils est protégée par un mot de passe.",
+        "de": "Nur wenn die Weboberfläche der Geräte mit einem Passwort geschützt ist.",
+        "es": "Solo si la interfaz web de los dispositivos está protegida por contraseña."
+      }
+    },
+    {
+      "key": "http_password",
+      "type": "secret",
+      "label": {
+        "en": "Web interface password",
+        "fr": "Mot de passe de l'interface web",
+        "de": "Passwort der Weboberfläche",
+        "es": "Contraseña de la interfaz web"
+      }
+    },
+    {
+      "key": "poll_interval",
       "type": "select",
-      "label": { "en": "Temperature unit", "fr": "Unité de température" },
-      "required": false,
-      "default": "celsius",
+      "default": "5",
+      "label": {
+        "en": "Read every",
+        "fr": "Lire toutes les",
+        "de": "Lesen alle",
+        "es": "Leer cada"
+      },
+      "description": {
+        "en": "Match the round interval of the devices (5 minutes by default): reading more often brings nothing new.",
+        "fr": "Calquez-le sur l'intervalle des appareils (5 minutes par défaut) : lire plus souvent n'apporte rien de neuf.",
+        "de": "Richte ihn nach dem Intervall der Geräte (standardmäßig 5 Minuten): öfter lesen bringt nichts Neues.",
+        "es": "Ajústelo al intervalo de los dispositivos (5 minutos por defecto): leer más a menudo no aporta nada nuevo."
+      },
       "options": [
-        { "value": "celsius", "label": { "en": "Celsius", "fr": "Celsius" } },
-        { "value": "fahrenheit", "label": { "en": "Fahrenheit", "fr": "Fahrenheit" } }
+        {
+          "value": "1",
+          "label": {
+            "en": "1 minute",
+            "fr": "1 minute",
+            "de": "1 Minute",
+            "es": "1 minuto"
+          }
+        },
+        {
+          "value": "2",
+          "label": {
+            "en": "2 minutes",
+            "fr": "2 minutes",
+            "de": "2 Minuten",
+            "es": "2 minutos"
+          }
+        },
+        {
+          "value": "5",
+          "label": {
+            "en": "5 minutes",
+            "fr": "5 minutes",
+            "de": "5 Minuten",
+            "es": "5 minutos"
+          }
+        },
+        {
+          "value": "10",
+          "label": {
+            "en": "10 minutes",
+            "fr": "10 minutes",
+            "de": "10 Minuten",
+            "es": "10 minutos"
+          }
+        },
+        {
+          "value": "15",
+          "label": {
+            "en": "15 minutes",
+            "fr": "15 minutes",
+            "de": "15 Minuten",
+            "es": "15 minutos"
+          }
+        }
       ]
     },
     {
-      "key": "poll_frequency",
-      "type": "number",
-      "label": { "en": "Refresh interval (s)", "fr": "Intervalle de rafraîchissement (s)" },
-      "description": {
-        "en": "How often sensors are polled, in seconds (one minute minimum).",
-        "fr": "Fréquence d'interrogation des capteurs, en secondes (une minute minimum)."
+      "key": "meters",
+      "type": "section",
+      "label": {
+        "en": "Meters",
+        "fr": "Compteurs",
+        "de": "Zähler",
+        "es": "Contadores"
       },
-      "required": false,
-      "default": 300,
-      "min": 60,
-      "max": 3600
+      "description": {
+        "en": "Each number read by a device becomes a meter in Gladys. Its type sets the feature and the unit of its index: choose it before adding the meter.",
+        "fr": "Chaque nombre lu par un appareil devient un compteur dans Gladys. Son type fixe la fonctionnalité et l'unité de l'index : choisissez-le avant d'ajouter le compteur.",
+        "de": "Jede von einem Gerät gelesene Zahl wird ein Zähler in Gladys. Sein Typ legt Funktion und Einheit des Zählerstands fest: Wähl ihn, bevor du den Zähler hinzufügst.",
+        "es": "Cada número leído por un dispositivo se convierte en un contador en Gladys. Su tipo fija la función y la unidad del índice: elíjalo antes de añadir el contador."
+      }
+    },
+    {
+      "key": "meter_type",
+      "type": "select",
+      "default": "water_m3",
+      "label": {
+        "en": "Meter type",
+        "fr": "Type de compteur",
+        "de": "Zählertyp",
+        "es": "Tipo de contador"
+      },
+      "options": [
+        {
+          "value": "water_m3",
+          "label": {
+            "en": "Water (m³)",
+            "fr": "Eau (m³)",
+            "de": "Wasser (m³)",
+            "es": "Agua (m³)"
+          }
+        },
+        {
+          "value": "water_l",
+          "label": {
+            "en": "Water (L)",
+            "fr": "Eau (L)",
+            "de": "Wasser (L)",
+            "es": "Agua (L)"
+          }
+        },
+        {
+          "value": "gas_m3",
+          "label": {
+            "en": "Gas (m³)",
+            "fr": "Gaz (m³)",
+            "de": "Gas (m³)",
+            "es": "Gas (m³)"
+          }
+        },
+        {
+          "value": "electricity_kwh",
+          "label": {
+            "en": "Electricity (kWh)",
+            "fr": "Électricité (kWh)",
+            "de": "Strom (kWh)",
+            "es": "Electricidad (kWh)"
+          }
+        }
+      ]
+    },
+    {
+      "key": "meter_types",
+      "type": "string",
+      "label": {
+        "en": "Type per number",
+        "fr": "Type par nombre",
+        "de": "Typ pro Zahl",
+        "es": "Tipo por número"
+      },
+      "description": {
+        "en": "Optional, for a device reading several meters: number=type, separated by commas. Types: water_m3, water_l, gas_m3, electricity_kwh.",
+        "fr": "Facultatif, pour un appareil qui lit plusieurs compteurs : nombre=type, séparés par des virgules. Types : water_m3, water_l, gas_m3, electricity_kwh.",
+        "de": "Optional, für ein Gerät, das mehrere Zähler liest: Zahl=Typ, durch Kommas getrennt. Typen: water_m3, water_l, gas_m3, electricity_kwh.",
+        "es": "Opcional, para un dispositivo que lee varios contadores: número=tipo, separados por comas. Tipos: water_m3, water_l, gas_m3, electricity_kwh."
+      },
+      "placeholder": {
+        "en": "e.g. main=water_m3, gas=gas_m3",
+        "fr": "ex. main=water_m3, gas=gas_m3",
+        "de": "z. B. main=water_m3, gas=gas_m3",
+        "es": "p. ej. main=water_m3, gas=gas_m3"
+      }
+    },
+    {
+      "key": "leak_hours",
+      "type": "select",
+      "default": "3",
+      "label": {
+        "en": "Probable leak after",
+        "fr": "Fuite probable après",
+        "de": "Wahrscheinliches Leck nach",
+        "es": "Fuga probable tras"
+      },
+      "description": {
+        "en": "Water and gas: the index going up without a pause for that long sets the Probable leak feature.",
+        "fr": "Eau et gaz : l'index qui monte sans pause pendant cette durée active la fonctionnalité Fuite probable.",
+        "de": "Wasser und Gas: Steigt der Zählerstand so lange ohne Pause, wird die Funktion Wahrscheinliches Leck gesetzt.",
+        "es": "Agua y gas: si el índice sube sin pausa durante ese tiempo, se activa la función Fuga probable."
+      },
+      "options": [
+        {
+          "value": "0",
+          "label": {
+            "en": "Never",
+            "fr": "Jamais",
+            "de": "Nie",
+            "es": "Nunca"
+          }
+        },
+        {
+          "value": "1",
+          "label": {
+            "en": "1 hour",
+            "fr": "1 heure",
+            "de": "1 Stunde",
+            "es": "1 hora"
+          }
+        },
+        {
+          "value": "2",
+          "label": {
+            "en": "2 hours",
+            "fr": "2 heures",
+            "de": "2 Stunden",
+            "es": "2 horas"
+          }
+        },
+        {
+          "value": "3",
+          "label": {
+            "en": "3 hours",
+            "fr": "3 heures",
+            "de": "3 Stunden",
+            "es": "3 horas"
+          }
+        },
+        {
+          "value": "4",
+          "label": {
+            "en": "4 hours",
+            "fr": "4 heures",
+            "de": "4 Stunden",
+            "es": "4 horas"
+          }
+        },
+        {
+          "value": "6",
+          "label": {
+            "en": "6 hours",
+            "fr": "6 heures",
+            "de": "6 Stunden",
+            "es": "6 horas"
+          }
+        },
+        {
+          "value": "8",
+          "label": {
+            "en": "8 hours",
+            "fr": "8 heures",
+            "de": "8 Stunden",
+            "es": "8 horas"
+          }
+        },
+        {
+          "value": "12",
+          "label": {
+            "en": "12 hours",
+            "fr": "12 heures",
+            "de": "12 Stunden",
+            "es": "12 horas"
+          }
+        },
+        {
+          "value": "24",
+          "label": {
+            "en": "24 hours",
+            "fr": "24 heures",
+            "de": "24 Stunden",
+            "es": "24 horas"
+          }
+        }
+      ]
+    },
+    {
+      "key": "language",
+      "type": "select",
+      "default": "fr",
+      "label": {
+        "en": "Language of the texts",
+        "fr": "Langue des textes",
+        "de": "Sprache der Texte",
+        "es": "Idioma de los textos"
+      },
+      "description": {
+        "en": "Feature names when a device is added, reading status, scene sentences and action messages.",
+        "fr": "Noms des fonctionnalités à l'ajout d'un appareil, état de la lecture, phrases des scènes et messages des actions.",
+        "de": "Namen der Funktionen beim Hinzufügen, Status der Ablesung, Szenen-Sätze und Meldungen der Aktionen.",
+        "es": "Nombres de las funciones al añadir un dispositivo, estado de la lectura, frases de escenas y mensajes de las acciones."
+      },
+      "options": [
+        {
+          "value": "en",
+          "label": {
+            "en": "English",
+            "fr": "Anglais",
+            "de": "Englisch",
+            "es": "Inglés"
+          }
+        },
+        {
+          "value": "fr",
+          "label": {
+            "en": "French",
+            "fr": "Français",
+            "de": "Französisch",
+            "es": "Francés"
+          }
+        },
+        {
+          "value": "de",
+          "label": {
+            "en": "German",
+            "fr": "Allemand",
+            "de": "Deutsch",
+            "es": "Alemán"
+          }
+        },
+        {
+          "value": "es",
+          "label": {
+            "en": "Spanish",
+            "fr": "Espagnol",
+            "de": "Spanisch",
+            "es": "Español"
+          }
+        }
+      ]
     }
   ],
   "actions": [
     {
-      "key": "test_weather",
-      "label": { "en": "Test the weather provider", "fr": "Tester le fournisseur météo" },
-      "timeout_seconds": 30
-    },
-    {
-      "key": "identify",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ]
-    }
-  ],
-  "scene_triggers": [
-    {
-      "key": "motion_detected",
-      "label": { "en": "Motion detected", "fr": "Mouvement détecté" },
-      "description": {
-        "en": "A demo motion sensor saw a person or an animal move.",
-        "fr": "Un détecteur de démonstration a vu bouger une personne ou un animal."
+      "key": "check_connection",
+      "timeout_seconds": 30,
+      "label": {
+        "en": "Check the connection",
+        "fr": "Vérifier la connexion",
+        "de": "Verbindung prüfen",
+        "es": "Comprobar la conexión"
       },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Sensor", "fr": "Détecteur" }
-        },
-        {
-          "key": "target",
-          "type": "multi_select",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" },
-          "options": [
-            { "value": "person", "label": { "en": "Person", "fr": "Personne" } },
-            { "value": "animal", "label": { "en": "Animal", "fr": "Animal" } }
-          ]
-        }
-      ],
-      "variables": [
-        {
-          "key": "target",
-          "type": "string",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" }
-        }
-      ]
+      "description": {
+        "en": "Tells whether the broker answers and the devices are heard.",
+        "fr": "Indique si le broker répond et si les appareils sont entendus.",
+        "de": "Zeigt, ob der Broker antwortet und die Geräte gehört werden.",
+        "es": "Indica si el broker responde y si se oyen los dispositivos."
+      }
     }
   ],
   "scene_actions": [
     {
-      "key": "identify_device",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "description": {
-        "en": "Make a device signal itself (the demo light blinks).",
-        "fr": "Fait se signaler un appareil (la lampe de démonstration clignote)."
+      "key": "get_reading",
+      "timeout_seconds": 10,
+      "label": {
+        "en": "AI-on-the-edge: meter reading",
+        "fr": "AI-on-the-edge : relevé d'un compteur",
+        "de": "AI-on-the-edge: Zählerstand",
+        "es": "AI-on-the-edge: lectura de un contador"
       },
-      "timeout_seconds": 15,
+      "description": {
+        "en": "The last index of a meter, as a sentence ready for a message and as values.",
+        "fr": "Le dernier index d'un compteur, en une phrase prête pour un message et en valeurs.",
+        "de": "Der letzte Stand eines Zählers, als Satz für eine Nachricht und als Werte.",
+        "es": "El último índice de un contador, en una frase lista para un mensaje y en valores."
+      },
       "fields": [
         {
           "key": "device",
           "type": "select",
           "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
+          "required": true,
+          "label": {
+            "en": "Meter",
+            "fr": "Compteur",
+            "de": "Zähler",
+            "es": "Contador"
+          }
         }
       ],
       "outputs": [
         {
-          "key": "signalled",
+          "key": "summary",
+          "type": "string",
+          "label": {
+            "en": "Sentence",
+            "fr": "Phrase",
+            "de": "Satz",
+            "es": "Frase"
+          }
+        },
+        {
+          "key": "index",
+          "type": "number",
+          "label": {
+            "en": "Index",
+            "fr": "Index",
+            "de": "Zählerstand",
+            "es": "Índice"
+          }
+        },
+        {
+          "key": "flow",
+          "type": "number",
+          "label": {
+            "en": "Flow (L/h) or power (kW)",
+            "fr": "Débit (L/h) ou puissance (kW)",
+            "de": "Durchfluss (L/h) oder Leistung (kW)",
+            "es": "Caudal (L/h) o potencia (kW)"
+          }
+        },
+        {
+          "key": "reading_error",
           "type": "boolean",
-          "label": { "en": "Device signalled", "fr": "Appareil signalé" }
+          "label": {
+            "en": "Last reading failed",
+            "fr": "Dernière lecture en erreur",
+            "de": "Letzte Ablesung fehlgeschlagen",
+            "es": "Última lectura fallida"
+          }
+        },
+        {
+          "key": "leak",
+          "type": "boolean",
+          "label": {
+            "en": "Probable leak",
+            "fr": "Fuite probable",
+            "de": "Wahrscheinliches Leck",
+            "es": "Fuga probable"
+          }
         }
       ]
     }
   ],
   "widgets": [
     {
-      "key": "demo_status",
-      "label": { "en": "Demo status", "fr": "État de la démo" },
-      "description": {
-        "en": "Live temperature and plug power, plug connection and observed location.",
-        "fr": "Température et puissance en direct, connexion de la prise, position observée."
+      "key": "meters",
+      "icon": "droplet",
+      "label": {
+        "en": "Meters",
+        "fr": "Compteurs",
+        "de": "Zähler",
+        "es": "Contadores"
       },
-      "icon": "activity",
-      "action_timeout_seconds": 15
+      "description": {
+        "en": "The index of each meter added to Gladys, with its flow.",
+        "fr": "L'index de chaque compteur ajouté à Gladys, avec son débit.",
+        "de": "Der Stand jedes zu Gladys hinzugefügten Zählers, mit Durchfluss.",
+        "es": "El índice de cada contador añadido a Gladys, con su caudal."
+      },
+      "settings": [
+        {
+          "key": "show_flow",
+          "type": "boolean",
+          "default": true,
+          "label": {
+            "en": "Show the flow or power",
+            "fr": "Afficher le débit ou la puissance",
+            "de": "Durchfluss oder Leistung anzeigen",
+            "es": "Mostrar el caudal o la potencia"
+          }
+        }
+      ]
     }
   ]
 }

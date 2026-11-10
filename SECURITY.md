@@ -30,6 +30,17 @@ Gladys before reporting a problem.
 
 In scope: the code of this repository and the Docker image it publishes.
 
+What the integration stores and sends:
+
+- `/data/client-id`: a random MQTT client id, nothing else. The broker and web
+  interface credentials stay in the Gladys configuration; they are never
+  logged (addresses are logged without user name or password).
+- Network: an MQTT connection to the configured broker (subscribe only, never
+  publishes), and HTTP GET requests to the configured device addresses
+  (`/json`, `/rssi`, `/cpu_temperature`, `/statusflow`), with HTTP basic
+  authentication when set. The devices only offer plain HTTP: use it on a
+  trusted network. No cloud service is contacted.
+
 Out of scope: Gladys Assistant itself (see its
 [security policy](https://github.com/GladysAssistant/Gladys/security/policy)),
-and the third-party services and devices the integration talks to.
+the MQTT broker, and the AI-on-the-edge-device firmware.
