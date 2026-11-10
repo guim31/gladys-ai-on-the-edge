@@ -48,6 +48,11 @@ export const WIDGET_KEY = 'meters';
 
 const MINUTE = 60_000;
 
+// The firmware default round (5 minutes) and the bounds of a credible one.
+const DEFAULT_ROUND_MS = 5 * MINUTE;
+const MIN_ROUND_MS = 30_000;
+const MAX_ROUND_MS = 6 * 60 * MINUTE;
+
 export const DEFAULT_TIMINGS = {
   tickMs: 5_000,
   // A discovery list that changed is sent again after this quiet time.
@@ -97,9 +102,15 @@ export class Hub {
   // --- lifecycle --------------------------------------------------------------
 
   async configure(config) {
+    // The SDK calls this again at every reconnection to Gladys: an unchanged
+    // configuration keeps the link and what the devices said (online, leak).
+    if (this.config && JSON.stringify(config) === JSON.stringify(this.config)) {
+      return;
+    }
     const generation = ++this.generation;
     this.#stopSources();
     this.config = config;
+    this.polling = null;
     this.cameras.clear();
     this.discoveryKey = '';
     if (!isConfigured(config)) {
@@ -127,7 +138,7 @@ export class Hub {
       clientId,
       tlsInsecure: config.tls_insecure,
       topics: subscriptions(config.main_topics),
-      onMessage: (topic, payload) => this.onMessage(topic, payload),
+      onMessage: (topic, payload, retained) => this.onMessage(topic, payload, retained),
       onState: (state, detail) => this.onLinkState(state, detail),
       ...(this.connectMqtt ? { connect: this.connectMqtt } : {}),
     });
@@ -136,6 +147,7 @@ export class Hub {
   stop() {
     this.generation += 1;
     this.#stopSources();
+    this.polling = null;
     clearTimeout(this.discoveryTimer);
     this.discoveryTimer = null;
   }
@@ -204,6 +216,7 @@ export class Hub {
         cpuTemperature: null,
         status: '',
         intervalMin: null,
+        observedRoundMs: null,
         lastHeardAt: null,
         numbers: new Map(),
       };
@@ -214,30 +227,70 @@ export class Hub {
   }
 
   #setOnline(camera, online) {
-    if (camera.online !== null && camera.online !== online) {
+    if (camera.online === null) {
+      // A device first known now (a REST device that does not answer, or
+      // answers 403) shows up in the Discovery tab.
+      this.scheduleDiscovery();
+    } else if (camera.online !== online) {
       logger.info(`${camera.hostname || camera.id}: ${online ? 'back online' : 'offline'}`);
     }
     camera.online = online;
   }
 
-  /** The round interval of a camera, in ms: what it said, or the polling pace. */
+  /**
+   * The round interval of a camera, in ms: what it published (MQTT
+   * `interval`, sent once after it connects), else the spacing observed
+   * between its rounds, else the firmware default (MQTT) or the polling pace
+   * (REST), whichever is longer.
+   */
   #roundMs(camera) {
-    return (camera.intervalMin ?? this.config.poll_interval) * MINUTE;
+    if (camera.intervalMin !== null) {
+      return camera.intervalMin * MINUTE;
+    }
+    const fallback =
+      camera.source === 'mqtt' ? DEFAULT_ROUND_MS : this.config.poll_interval * MINUTE;
+    return Math.max(camera.observedRoundMs ?? 0, fallback);
   }
 
-  onMessage(topic, payload) {
+  /** A new round of a meter at `now`: learn the spacing of the rounds. */
+  #observeRound(camera, meter, now) {
+    if (meter.roundAt !== null) {
+      const spacing = now - meter.roundAt;
+      // Several numbers arrive in the same round: only real spacings count.
+      if (spacing >= MIN_ROUND_MS && spacing <= MAX_ROUND_MS) {
+        camera.observedRoundMs = spacing;
+      }
+    }
+    meter.roundAt = now;
+  }
+
+  /**
+   * @param {string} topic
+   * @param {Buffer|string} payload
+   * @param {boolean} [retained] replayed by the broker at subscription: says
+   *   nothing about the device being alive now (except its retained LWT)
+   */
+  onMessage(topic, payload, retained = false) {
     const message = parseTopic(this.config.main_topics, topic);
     if (!message) {
       return;
     }
     const camera = this.#camera('mqtt', message.main);
-    camera.lastHeardAt = this.now();
+    const now = this.now();
+    if (retained) {
+      // The silence delay starts now for a device only known from the past.
+      camera.lastHeardAt ??= now;
+    } else {
+      camera.lastHeardAt = now;
+    }
     const text = String(payload).trim();
     if (message.kind === 'number') {
       const reading = parseNumberJson(payload);
       if (reading) {
-        this.#setOnline(camera, true);
-        this.applyReading(camera, message.number, reading);
+        if (!retained) {
+          this.#setOnline(camera, true);
+        }
+        this.applyReading(camera, message.number, reading, { newRound: !retained });
       }
       return;
     }
@@ -265,8 +318,13 @@ export class Hub {
     }
   }
 
-  /** One number of a round. */
-  applyReading(camera, number, reading) {
+  /**
+   * One number of a round.
+   * @param {object} [options]
+   * @param {boolean} [options.newRound] a live round (MQTT); REST tells it by
+   *   a new timestamp
+   */
+  applyReading(camera, number, reading, { newRound = false } = {}) {
     let meter = camera.numbers.get(number);
     if (!meter) {
       meter = {
@@ -277,12 +335,23 @@ export class Hub {
         timestamp: '',
         flowingSince: null,
         lastIncreaseAt: null,
+        roundAt: null,
+        roundTimestamp: '',
       };
       camera.numbers.set(number, meter);
       this.scheduleDiscovery();
     }
     const key = meterKey(camera.key, number);
     const name = `${camera.hostname || camera.id} ${number}`;
+    const now = this.now();
+    if (camera.source === 'http') {
+      // A REST poll faster than the rounds reads the same round again.
+      newRound = reading.timestamp !== '' && reading.timestamp !== meter.roundTimestamp;
+      meter.roundTimestamp = reading.timestamp || meter.roundTimestamp;
+    }
+    if (newRound) {
+      this.#observeRound(camera, meter, now);
+    }
     meter.reading = reading;
     if (!isOk(reading)) {
       this.issues.fail(`reading:${key}`, `${name}: reading failed (${reading.error})`);
@@ -290,7 +359,6 @@ export class Hub {
       return;
     }
     this.issues.ok(`reading:${key}`, `${name}: readings are valid again`);
-    const now = this.now();
     if (meter.value !== null && reading.value > meter.value) {
       if (meter.flowingSince === null || now - meter.lastIncreaseAt > this.#gapMs(camera)) {
         meter.flowingSince = now;
@@ -298,7 +366,8 @@ export class Hub {
       meter.lastIncreaseAt = now;
     }
     meter.value = reading.value;
-    meter.flow = flowOf(reading.rate, meterTypeOf(this.config, number));
+    // No rate on the first round after a boot: the last flow stays.
+    meter.flow = flowOf(reading.rate, meterTypeOf(this.config, number)) ?? meter.flow;
     meter.timestamp = shortTimestamp(reading.timestamp) || meter.timestamp;
   }
 
@@ -321,33 +390,53 @@ export class Hub {
 
   /** Every REST device, one after the other; a poll still running is joined. */
   pollAll() {
-    this.polling ??= (async () => {
+    if (this.polling) {
+      return this.polling;
+    }
+    // A poll started under an older configuration stops at its next device,
+    // and never writes into the new state.
+    const generation = this.generation;
+    const config = this.config;
+    const run = (async () => {
       try {
-        for (const address of this.config?.http_devices ?? []) {
-          await this.#pollOne(address);
+        for (const address of config?.http_devices ?? []) {
+          if (generation !== this.generation) {
+            return;
+          }
+          await this.#pollOne(address, config, generation);
         }
-        await this.tick();
+        if (generation === this.generation) {
+          await this.tick();
+        }
       } finally {
-        this.polling = null;
+        if (this.polling === run) {
+          this.polling = null;
+        }
       }
     })();
-    return this.polling;
+    this.polling = run;
+    return run;
   }
 
-  async #pollOne(address) {
-    const generation = this.generation;
-    const camera = this.#camera('http', new URL(address).host, address);
+  async #pollOne(address, config, generation) {
     const client = createDeviceClient({
       address,
-      username: this.config.http_username,
-      password: this.config.http_password,
+      username: config.http_username,
+      password: config.http_password,
       ...(this.fetch ? { fetch: this.fetch } : {}),
     });
+    let result;
+    let failure = null;
     try {
-      const result = await client.read();
-      if (generation !== this.generation) {
-        return;
-      }
+      result = await client.read();
+    } catch (err) {
+      failure = err;
+    }
+    if (generation !== this.generation) {
+      return;
+    }
+    const camera = this.#camera('http', new URL(address).host, address);
+    if (!failure) {
       this.issues.ok(`http:${address}`, `${address} answers again`);
       camera.lastHeardAt = this.now();
       this.#setOnline(camera, true);
@@ -357,13 +446,10 @@ export class Hub {
       for (const [number, reading] of result.numbers ?? []) {
         this.applyReading(camera, number, reading);
       }
-    } catch (err) {
-      if (generation !== this.generation) {
-        return;
-      }
-      this.issues.fail(`http:${address}`, `${address} does not answer (${err.message})`);
-      this.#setOnline(camera, false);
+      return;
     }
+    this.issues.fail(`http:${address}`, `${address} does not answer (${failure.message})`);
+    this.#setOnline(camera, false);
   }
 
   // --- discovery --------------------------------------------------------------
@@ -533,7 +619,8 @@ export class Hub {
           text: meter.timestamp,
         });
       }
-      widget.push([key, meter.value, meter.flow, leak, isOk(meter.reading)]);
+      // The flow moves at every round: the widget TTL is enough for it.
+      widget.push([key, meter.value, leak, isOk(meter.reading)]);
     }
     await this.#publish(states);
     const widgetKey = JSON.stringify(widget);
@@ -573,7 +660,7 @@ export class Hub {
 
   /** Everything again: a device was just added or updated in Gladys. */
   async republish() {
-    this.gladys.forgetPublishedStates?.();
+    // The SDK already forgot the states of the created or updated device.
     this.widgetKey = '';
     await this.tick();
   }

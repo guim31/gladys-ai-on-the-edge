@@ -36,7 +36,7 @@ export const isRefusal = (err) =>
  * @param {string} options.clientId stable, unique per installation
  * @param {boolean} [options.tlsInsecure] accept a self-signed certificate
  * @param {string[]} options.topics
- * @param {(topic: string, payload: Buffer) => void} options.onMessage
+ * @param {(topic: string, payload: Buffer, retained: boolean) => void} options.onMessage
  * @param {(state: string, detail?: string) => void} options.onState
  * @param {Function} [options.connect] test seam: mqtt.connect
  */
@@ -104,9 +104,9 @@ export function createClient({
     });
   });
 
-  client.on('message', (topic, payload) => {
+  client.on('message', (topic, payload, packet) => {
     if (!stopped) {
-      onMessage(topic, payload);
+      onMessage(topic, payload, packet?.retain === true);
     }
   });
 

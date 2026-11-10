@@ -210,7 +210,7 @@ test('a device added in Gladys gets every state again', async (t) => {
   await flush();
   const resent = world.gladys.fake.states.slice(before).map((s) => s.device_feature_external_id);
   assert.ok(resent.includes(world.meter.feature('index')));
-  assert.ok(resent.includes(world.camera.feature('online')));
+  assert.ok(resent.includes(world.meter.feature('error_text')));
 });
 
 test('without configuration, the integration page says what to fill in', async () => {
@@ -222,4 +222,72 @@ test('without configuration, the integration page says what to fill in', async (
   } finally {
     world.app.stop();
   }
+});
+
+test('a retained round says nothing about the device being alive now', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: START });
+  const world = await createWorld();
+  t.after(() => world.app.stop());
+  world.broker.accept();
+  world.broker.send('watermeter/main/json', numberJson(), { retain: true });
+  await tick(t, 0);
+  await addAll(world);
+  const camera = cameraIds(world.gladys, 'mqtt:watermeter');
+  const meter = meterIds(world.gladys, 'mqtt:watermeter/main');
+  assert.equal(lastState(world, meter.feature('index')), 1234.5678);
+  assert.equal(lastState(world, camera.feature('online')), undefined);
+  // Its retained LWT does.
+  world.broker.send('watermeter/connection', 'connection lost', { retain: true });
+  await tick(t, 5000);
+  assert.equal(lastState(world, camera.feature('online')), 0);
+});
+
+test('the first round after a boot (no rate) keeps the last flow', async (t) => {
+  const world = await addedWorld(t);
+  world.broker.send('watermeter/main/json', numberJson({ value: '1234.6000', rate: '' }));
+  await tick(t, 5000);
+  assert.equal(lastState(world, world.meter.feature('index')), 1234.6);
+  assert.equal(lastState(world, world.meter.feature('flow')), 9.6);
+});
+
+test('rounds of 20 minutes: no offline flapping, the leak still found', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: START });
+  const world = await createWorld({ config: { broker_url: BROKER_URL, leak_hours: '2' } });
+  t.after(() => world.app.stop());
+  world.broker.accept();
+  // No `interval` topic: the container started after the device connected.
+  world.broker.send('watermeter/connection', 'connected');
+  world.broker.send('watermeter/main/json', numberJson());
+  await tick(t, 0);
+  await addAll(world);
+  const camera = cameraIds(world.gladys, 'mqtt:watermeter');
+  const meter = meterIds(world.gladys, 'mqtt:watermeter/main');
+  let value = 1234.5678;
+  const offline = [];
+  for (let i = 0; i < 8; i += 1) {
+    for (let s = 0; s < 4; s += 1) {
+      await tick(t, 5 * MINUTE);
+      offline.push(lastState(world, camera.feature('online')));
+    }
+    value += 0.001;
+    world.broker.send('watermeter/connection', 'connected');
+    world.broker.send('watermeter/main/json', numberJson({ value: value.toFixed(4) }));
+    await tick(t, 0);
+  }
+  // The first gap (before any spacing is known) may look like silence;
+  // afterwards the 20-minute rounds are learnt.
+  assert.deepEqual(offline.slice(8), Array(offline.length - 8).fill(1));
+  assert.equal(lastState(world, meter.feature('leak')), 1);
+});
+
+test('the same configuration again keeps the broker link and the device states', async (t) => {
+  const world = await addedWorld(t);
+  const clients = world.broker.clients.length;
+  await world.gladys.fake.configUpdated({ broker_url: BROKER_URL });
+  await flush();
+  assert.equal(world.broker.clients.length, clients);
+  assert.equal(world.hub.cameras.size, 1);
+  await world.gladys.fake.configUpdated({ broker_url: BROKER_URL, main_topics: 'gasmeter' });
+  await flush();
+  assert.equal(world.broker.clients.length, clients + 1);
 });

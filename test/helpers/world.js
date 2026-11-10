@@ -100,8 +100,8 @@ export function createFakeBroker() {
     accept() {
       broker.client.emit('connect');
     },
-    send(topic, payload) {
-      broker.client.emit('message', topic, Buffer.from(String(payload)));
+    send(topic, payload, { retain = false } = {}) {
+      broker.client.emit('message', topic, Buffer.from(String(payload)), { retain });
     },
     drop() {
       broker.client.emit('close');

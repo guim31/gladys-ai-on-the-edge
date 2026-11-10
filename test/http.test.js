@@ -115,3 +115,33 @@ test('a scan polls again and republishes the discovery', async (t) => {
   await flush();
   assert.equal(world.fetch.requests.length, before + 4);
 });
+
+test('a configuration saved during a poll: the new devices are polled at once', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: 1_700_000_000_000 });
+  let release;
+  const world = await createWorld({
+    config: { http_devices: '192.0.2.30' },
+    routes: deviceRoutes(),
+  });
+  t.after(() => world.app.stop());
+  // Hold the next requests of the old device.
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const hold = world.hub.fetch;
+  world.hub.fetch = async (url, options) => {
+    if (url.startsWith(DEVICE_ADDRESS)) {
+      await gate;
+    }
+    return hold(url, options);
+  };
+  const inFlight = world.hub.pollAll();
+  Object.assign(world.fetch.routes, deviceRoutes('http://192.0.2.31'));
+  await world.gladys.fake.configUpdated({ http_devices: '192.0.2.31' });
+  await flush();
+  assert.ok(world.fetch.requests.some((r) => r.url === 'http://192.0.2.31/json'));
+  release();
+  await inFlight;
+  await flush();
+  assert.deepEqual([...world.hub.cameras.keys()], ['http:192.0.2.31']);
+});
