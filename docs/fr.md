@@ -1,67 +1,111 @@
-# Template de démonstration
+# AI-on-the-edge
 
-Ceci est la documentation utilisateur de l'intégration. Gladys ré-héberge ce
-fichier et affiche un lien **Documentation** permanent vers lui dans l'écran
-de configuration (dans la langue de l'utilisateur, avec l'anglais en repli) —
-c'est au moment de configurer que l'utilisateur en a le plus besoin. Gardez
-les courtes indications d'accueil dans les blocs `section` du `config_schema`
-du manifest ; mettez ici le pas-à-pas détaillé (captures d'écran, dépannage…).
+Relève votre compteur d'eau, de gaz ou d'électricité dans Gladys avec
+[AI-on-the-edge-device](https://github.com/jomjol/AI-on-the-edge-device) : une ESP32-CAM
+photographie le compteur et lit ses chiffres par réseau de neurones. L'intégration reçoit les
+relevés par MQTT ou par l'API REST de l'appareil.
+
+> Développée sans le matériel : les formats viennent des sources du firmware et de sa
+> documentation. Vos retours sont les bienvenus sur le forum Gladys.
 
 ## Ce que vous obtenez
 
-Six appareils de démonstration apparaissent après l'installation : une
-station météo (vraies données Open-Meteo), un interrupteur, une lampe
-variable, une prise connectée avec mesure de puissance, un détecteur de
-mouvement et une caméra.
+- Un appareil **compteur** par nombre lu par une ESP32-CAM : son index (m³, L ou kWh), le débit
+  (L/h) ou la puissance (kW), une alerte **Fuite probable** (eau et gaz), un indicateur d'erreur
+  de lecture, l'état de la lecture et l'heure de la dernière lecture valide.
+- Un appareil **caméra** par ESP32-CAM : en ligne, signal Wi-Fi, température du processeur et,
+  en REST, l'état du traitement.
+- Un widget de tableau de bord **Compteurs**, une action de scène **Relevé d'un compteur** et un
+  bouton **Vérifier la connexion**.
+
+## Avant de commencer
+
+- Une ESP32-CAM sous AI-on-the-edge-device (version 15 ou plus récente conseillée), réglée et
+  lisant correctement votre compteur dans sa propre interface web.
+- **MQTT** (conseillé) : dans la page MQTT de l'appareil, réglez le broker et notez le
+  _MainTopic_ (`watermeter` par défaut). L'appareil publie après chaque cycle (toutes les 5
+  minutes par défaut). Le broker installé par Gladys convient : ses identifiants sont sur la page
+  MQTT de Gladys.
+- **REST** : l'appareil doit être joignable en HTTP depuis Gladys. Rien à régler sur l'appareil.
 
 ## Configuration
 
-1. Ouvrez l'onglet **Configuration** de l'intégration.
-2. Renseignez la **latitude** et la **longitude** que la station météo de
-   démonstration doit observer (Paris par défaut), et choisissez votre unité
-   de température. L'**intervalle de rafraîchissement** règle la fréquence
-   de lecture de la station météo et de la puissance de la prise : toutes
-   les 5 minutes par défaut, toutes les minutes au plus.
-3. Enregistrez : les appareils apparaissent dans l'onglet **Découverte**,
-   prêts à être ajoutés.
+- **Adresse du broker MQTT**, **Nom d'utilisateur**, **Mot de passe** : le broker où publie
+  l'appareil. Laissez l'adresse vide pour n'utiliser que REST.
+- **Sujets principaux** : le _MainTopic_ de chaque appareil, séparés par des virgules
+  (`watermeter, gasmeter`). Un appareil par sujet.
+- **Adresses des appareils** : pour REST, l'adresse IP ou le nom de chaque appareil, séparés par
+  des virgules. **Utilisateur** et **mot de passe de l'interface web** seulement si elle est
+  protégée.
+- **Lire toutes les** : le rythme REST. Calquez-le sur l'intervalle des appareils : lire plus
+  souvent n'apporte rien de neuf.
+- **Type de compteur** : `water_m3` (eau, m³), `water_l` (eau, L), `gas_m3` (gaz, m³) ou
+  `electricity_kwh` (électricité, kWh). **Type par nombre** donne un autre type à un nombre d'un
+  appareil qui lit plusieurs compteurs : `main=water_m3, elec=electricity_kwh`.
+- **Fuite probable après** : de 1 à 24 heures, ou jamais.
+- **Langue des textes** : noms des fonctionnalités, état de la lecture, phrases des scènes.
 
-Le réglage **Préférer la connexion locale** pilote la prise de
-démonstration : elle affiche en badge le canal réellement utilisé (local ou
-cloud), avec un point orange quand elle fonctionne en mode dégradé (local
-refusé, bascule cloud).
+## Appareils
 
-## Actions
+Ouvrez l'onglet **Découverte** de l'intégration dès qu'un appareil a publié un cycle (ou a été
+lu en REST), et ajoutez les appareils voulus. **Le type de compteur se choisit avant d'ajouter
+le compteur** : il fixe la fonctionnalité et l'unité de l'index.
 
-- **Tester le fournisseur météo** — effectue une requête en direct vers
-  Open-Meteo et affiche la température et l'humidité actuelles sous le
-  bouton.
-- **Identifier un appareil** — choisissez un de vos appareils dans la liste
-  et il se signale (la lampe de démonstration « clignote » dans les logs).
+- **Index** : pour l'électricité, un _Index_ en kWh, la fonctionnalité de compteur d'énergie que
+  Gladys connaît. Pour l'eau et le gaz, un capteur de volume en m³ ou en L : Gladys 5 n'a pas
+  encore de tableau de bord d'énergie pour eux.
+- **Débit (L/h)** ou **Puissance** : d'après le débit que le firmware calcule entre deux
+  lectures valides.
+- **Erreur de lecture** et **État de la lecture** : OK, un chiffre illisible, une baisse ou une
+  hausse trop forte refusée par les contrôles de plausibilité du firmware. L'index garde sa
+  dernière valeur valide.
+- **En ligne** : le LWT de l'appareil en MQTT (ou trois cycles sans nouvelles), la réponse de
+  l'appareil en REST.
+
+## Fuite probable
+
+Eau et gaz seulement. Quand l'index monte à chaque cycle pendant la durée choisie, la
+fonctionnalité **Fuite probable** passe à 1 : un robinet resté ouvert, une chasse d'eau qui fuit,
+une canalisation. Un cycle sans changement visible est toléré (un petit débit fait avancer le
+dernier chiffre lentement) ; l'alerte cesse quand l'index n'a pas bougé pendant trois cycles.
+Utilisez-la comme déclencheur de scène, comme tout détecteur de fuite.
 
 ## Scènes
 
-L'intégration ajoute ses propres cartes à l'éditeur de scènes (Gladys 5.1
-ou plus récent), dans la catégorie **Intégrations** :
-
-- **Mouvement détecté** (déclencheur) — lance la scène quand un détecteur
-  de démonstration voit bouger quelque chose. Choisissez éventuellement le
-  détecteur et ce qui a bougé (personne, animal) ; laissés vides, toute
-  détection correspond. Les actions suivantes peuvent lire ce qui a bougé
-  avec `{{triggerEvent.data.target}}`.
-- **Identifier un appareil** (action) — fait se signaler l'appareil choisi.
-  Elle indique si l'appareil a pu se signaler, pour que les actions
-  suivantes puissent en dépendre.
+- Déclencheur : n'importe quelle fonctionnalité, comme d'habitude, par exemple **Fuite probable**
+  à 1 ou **Erreur de lecture** à 1.
+- Action **Relevé d'un compteur** : le dernier index d'un compteur en une phrase prête pour un
+  message (`watermeter compteur : 1 234,568 m³, 10 L/h.`) et en valeurs : `index`, `flow`,
+  `reading_error`, `leak`.
 
 ## Tableau de bord
 
-Ajoutez le widget **État de la démo** à un tableau de bord : il affiche en
-direct la température de la station météo et la puissance de la prise du
-bureau, la connexion utilisée par la prise (en orange si dégradée) et la
-position observée. Son bouton **Identifier la lampe** fait se signaler la
-lampe de démonstration.
+Le widget **Compteurs** liste les compteurs ajoutés à Gladys avec leur index, en rouge pour une
+fuite probable et en orange quand la dernière lecture a échoué. **Afficher le débit ou la
+puissance** masque la seconde valeur.
+
+## Vérifier la connexion
+
+Le bouton **Vérifier la connexion** indique si le broker répond, combien de sujets principaux
+ont été entendus et combien d'appareils REST répondent.
+
+## Limites
+
+- Développée sans ESP32-CAM : testée avec les formats exacts des messages du firmware, un vrai
+  broker Mosquitto et un faux appareil qui sert les réponses REST.
+- Le firmware ne publie pas l'état du traitement en MQTT : la fonctionnalité **État du
+  traitement** n'existe qu'en REST.
+- La détection de fuite dépend de la résolution du compteur (le dernier chiffre lu) et de
+  l'intervalle des cycles de l'appareil.
+- Changer un sujet principal ou l'adresse d'un appareil crée de nouveaux appareils dans Gladys.
+- Sans lien avec le projet AI-on-the-edge-device.
 
 ## Dépannage
 
-L'intégration journalise tout ce qu'elle fait : consultez les logs de
-l'intégration depuis l'interface Gladys (ou `docker logs` sur l'hôte) avec
-`LOG_LEVEL=debug` pour le détail complet.
+- **Rien dans l'onglet Découverte** : attendez un cycle (5 minutes par défaut), vérifiez le
+  _MainTopic_ et que l'appareil utilise le même broker ; en REST, que Gladys joint l'adresse de
+  l'appareil.
+- **Erreur de lecture souvent à 1** : corrigez l'alignement et les chiffres dans l'interface web
+  de l'appareil ; l'intégration ne fait que rapporter ce que lit le firmware.
+- **Le broker refuse le nom d'utilisateur ou le mot de passe** : vérifiez les identifiants de la
+  page MQTT de Gladys ou de votre broker.

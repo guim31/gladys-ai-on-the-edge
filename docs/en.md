@@ -1,61 +1,106 @@
-# Demo Devices Template
+# AI-on-the-edge
 
-This is the user documentation of the integration. Gladys re-hosts this file
-and shows a permanent **Documentation** link to it in the Configuration screen
-(in the user's language, with English as the fallback) — it is when
-configuring that the user needs it most. Keep the short onboarding hints in
-the `section` blocks of the manifest `config_schema`; put the long
-step-by-step (screenshots, troubleshooting…) here.
+Reads your water, gas or electricity meter in Gladys with
+[AI-on-the-edge-device](https://github.com/jomjol/AI-on-the-edge-device): an ESP32-CAM
+photographs the meter and reads its digits with a neural network. The integration gets the
+readings over MQTT or from the REST API of the device.
+
+> Developed without the hardware: the formats come from the firmware sources and its
+> documentation. Feedback welcome on the Gladys forum.
 
 ## What you get
 
-Six demo devices show up after installation: a weather station (real data
-from Open-Meteo), a switch, a dimmable light, a smart plug with power
-metering, a motion sensor and a camera.
+- One **meter** device per number read by an ESP32-CAM: its index (m³, L or kWh), the flow
+  (L/h) or the power (kW), a **Probable leak** alarm (water and gas), a reading error flag, the
+  reading status and the time of the last valid reading.
+- One **camera** device per ESP32-CAM: online, Wi-Fi signal, CPU temperature and, over REST,
+  the flow status.
+- A **Meters** dashboard widget, a **Meter reading** scene action and a **Check the connection**
+  button.
+
+## Before you start
+
+- An ESP32-CAM running AI-on-the-edge-device (version 15 or later recommended), set up and
+  reading your meter correctly in its own web interface.
+- **MQTT** (recommended): in the MQTT page of the device, set the broker and note the
+  _MainTopic_ (`watermeter` by default). The device publishes after each round (every 5
+  minutes by default). The broker installed by Gladys works: its credentials are on the MQTT
+  page of Gladys.
+- **REST**: the device must be reachable from Gladys over HTTP. Nothing to set on the device.
 
 ## Configuration
 
-1. Open the **Configuration** tab of the integration.
-2. Set the **latitude** and **longitude** the demo weather station should
-   observe (they default to Paris), and pick your temperature unit.
-   The **refresh interval** sets how often the weather station and the
-   plug's power are read: every 5 minutes by default, every minute at most.
-3. Save: the devices appear in the **Discovery** tab, ready to be added.
+- **MQTT broker address**, **User name**, **Password**: the broker the device publishes to.
+  Leave the address empty to use REST only.
+- **Main topics**: the _MainTopic_ of each device, separated by commas (`watermeter,
+gasmeter`). One device per topic.
+- **Device addresses**: for REST, the IP address or name of each device, separated by commas.
+  **Web interface user name** and **password** only if the web interface is protected.
+- **Read every**: the REST pace. Match the round interval of the devices: reading more often
+  brings nothing new.
+- **Meter type**: `water_m3` (water, m³), `water_l` (water, L), `gas_m3` (gas, m³) or
+  `electricity_kwh` (electricity, kWh). **Type per number** sets another type for one number of
+  a device reading several meters: `main=water_m3, elec=electricity_kwh`.
+- **Probable leak after**: from 1 to 24 hours, or never.
+- **Language of the texts**: feature names, reading status, scene sentences.
 
-The **Prefer the local connection** toggle drives the demo plug: it reports
-the channel it actually uses as a badge (local or cloud), with an orange dot
-when it runs degraded (local refused, cloud fallback).
+## Devices
 
-## Actions
+Open the **Discovery** tab of the integration once a device has published a round (or been
+read over REST), and add the devices you want. The **meter type must be chosen before adding a
+meter**: it sets the feature and the unit of the index.
 
-- **Test the weather provider** — performs a live request to Open-Meteo and
-  shows the current temperature and humidity under the button.
-- **Identify a device** — pick one of your devices in the list and it will
-  signal itself (the demo light "blinks" in the logs).
+- **Index**: for electricity, an _Index_ in kWh, the energy meter feature Gladys knows. For
+  water and gas, a volume sensor in m³ or L: Gladys 5 has no energy dashboard for them yet.
+- **Flow (L/h)** or **Power**: from the rate the firmware computes between two valid readings.
+- **Reading error** and **Reading status**: OK, an unreadable digit, a decreasing value or a
+  too big step refused by the plausibility checks of the firmware. The index keeps its last
+  valid value.
+- **Online**: the LWT of the device over MQTT (or three rounds without news), the device
+  answering over REST.
+
+## Probable leak
+
+Water and gas only. When the index goes up at every round for the chosen time, the **Probable
+leak** feature goes to 1: a tap left open, a leaking toilet, a pipe. One round without a
+visible change is tolerated (a small flow moves the last digit slowly); the alarm stops once
+the index has not moved for three rounds. Use it as a scene trigger, like any leak sensor.
 
 ## Scenes
 
-The integration adds its own cards to the scene editor (Gladys 5.1 or
-later), under the **Integrations** category:
-
-- **Motion detected** (trigger) — starts the scene when a demo motion sensor
-  sees something move. Optionally pick the sensor and what moved (person,
-  animal); left empty, any detection matches. The following actions can
-  read what moved with `{{triggerEvent.data.target}}`.
-- **Identify a device** (action) — makes the chosen device signal itself.
-  It returns whether the device could signal itself, so the following
-  actions can depend on it.
+- Trigger: any feature, as usual, for example **Probable leak** at 1 or **Reading error** at 1.
+- Action **Meter reading**: the last index of a meter as a sentence ready for a message
+  (`watermeter main: 1,234.568 m³, 10 L/h.`) and as values: `index`, `flow`, `reading_error`,
+  `leak`.
 
 ## Dashboard
 
-Add the **Demo status** widget to a dashboard: it shows the live
-temperature of the weather station and the power of the office plug, the
-connection the plug currently uses (orange when degraded) and the observed
-location. Its **Identify the light** button makes the demo light signal
-itself.
+The **Meters** widget lists the meters added to Gladys with their index, in red for a probable
+leak and in orange when the last reading failed. **Show the flow or power** hides the second
+value.
+
+## Check the connection
+
+The **Check the connection** button tells whether the broker answers, how many main topics
+were heard, and how many REST devices answer.
+
+## Limits
+
+- Developed without an ESP32-CAM: tested against the exact message formats of the firmware,
+  a real Mosquitto broker and a fake device serving the REST answers.
+- The firmware has no MQTT message for the flow status: the **Flow status** feature exists over
+  REST only.
+- The leak detection depends on the resolution of the meter (the last digit read) and on the
+  round interval of the device.
+- Changing a main topic or a device address creates new devices in Gladys.
+- Not affiliated with the AI-on-the-edge-device project.
 
 ## Troubleshooting
 
-The integration logs everything it does: check the integration logs from the
-Gladys UI (or `docker logs` on the host) with `LOG_LEVEL=debug` for the full
-detail.
+- **Nothing in the Discovery tab**: wait for a round (5 minutes by default), check the
+  _MainTopic_ and that the device uses the same broker; over REST, that Gladys reaches the
+  device address.
+- **Reading error often at 1**: fix the alignment and the digits in the web interface of the
+  device; the integration only reports what the firmware reads.
+- **The broker refuses the user name or the password**: check the credentials of the MQTT page
+  of Gladys or of your broker.

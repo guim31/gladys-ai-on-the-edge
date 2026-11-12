@@ -31,17 +31,20 @@ pushing.
 ## Architecture
 
 ```
-index.js                          SDK wiring only: handlers registered before connect()
-src/devices/index.js              registry of the device blueprints + dispatch helpers
-src/devices/<type>.js             one device type per file (buildDevice, onPoll, onSetValue...)
-src/scenes.js                     scene action handlers (manifest `scene_actions`)
-src/widgets.js                    dashboard widget handlers (manifest `widgets`)
+index.js                          SDK wiring only: src/app.js registers the handlers before connect()
+src/app.js                        handlers: discovery, action, scene action, widget, configuration
+src/hub.js                        MQTT messages, REST polling, discovery, states every 5 s, leak, online
+src/aote.js                       pure: firmware topics and payloads (json of a number, REST answers)
+src/http.js                       REST client of one device (sequential GETs, basic auth)
+src/devices.js                    camera and meter devices, their features
+src/mqtt.js                       MQTT client and its link states
+src/clientId.js                   stable MQTT client id in /data
+src/scenes.js, src/widgets.js     get_reading scene action, meters widget
+src/texts.js                      every text, in en/fr/de/es
 src/config.js                     DEFAULT_CONFIG (mirrors the manifest defaults) + normalization
-src/weather.js                    example driver (Open-Meteo)
-gladys-assistant-integration.json manifest: name, config_schema, actions, image...
-docs/en.md, docs/fr.md            user documentation, re-hosted by Gladys (mandatory)
-test/                             node --test, against the SDK's fake Gladys (integration-sdk/testing)
-.github/scripts/release.mjs       release helpers (manifest bump, changelog), tested in test/
+gladys-assistant-integration.json manifest
+docs/{en,fr,de,es}.md             user documentation, re-hosted by Gladys
+test/                             node --test, against the SDK's fake Gladys, a fake broker, a fake fetch
 ```
 
 ## Rules
@@ -251,3 +254,29 @@ long, et sur un « Sie »/« Ihr… » de politesse en allemand. Le store exige 
 - Docs `en`, `fr`, `de`, `es` avec les mêmes sections.
 - Chauffe, ouverture, sécurité : ne rien rendre pilotable « comme un thermostat » ou par un assistant
   vocal quand une erreur serait dangereuse (leçon d'OctoPrint).
+
+## AI-on-the-edge-device (cette intégration)
+
+- **Format** lu dans les sources du firmware (`code/components/jomjol_mqtt/server_mqtt.cpp`,
+  `jomjol_flowcontroll/ClassFlowMQTT.cpp`, `ClassFlowPostProcessing.cpp`, `MainFlowControl.cpp`,
+  `code/include/defines.h`). MQTT sous le _MainTopic_ (`watermeter` par défaut, multi-niveaux
+  possible) : `connection` (LWT `connected` / `connection lost`), `uptime`, `freeMem`, `wifiRSSI`,
+  `CPUtemp` à chaque cycle ; `fwVersion`, `MAC`, `IP`, `hostname`, `interval` (minutes) une fois après
+  connexion ; par nombre `<main>/<nombre>/json` (le nombre `default` publie sous `<main>/json`) et les
+  champs un par un (`value`, `error`, `rate`… : ignorés, le `json` est cohérent et toujours publié). La
+  rétention dépend du réglage du firmware : sans elle, rien avant le cycle suivant.
+- Le `json` d'un nombre : tout en chaînes, `value` vide quand le cycle échoue ; `error` vaut `no error`,
+  `Neg. Rate - …`, `Rate too high - …`, ou vide (chiffre `N` sans valeur précédente). `rate` en unités
+  par **minute**. `timestamp` au format `%Y-%m-%dT%H:%M:%S%z`, heure locale de l'appareil.
+- REST : `/json` (403 tant que le premier cycle n'est pas fini), `/rssi`, `/cpu_temperature` (entiers),
+  `/statusflow` (« Flow finished (14:05:12) », heure retirée). Authentification basique facultative
+  (`basic_auth` du firmware). Pas d'état du traitement en MQTT : la fonctionnalité `status` n'existe que
+  pour les appareils REST.
+- Index : `energy-sensor/index` kWh pour l'électricité (celle que lit le suivi d'énergie de Gladys) ;
+  `volume-sensor/decimal` m³ ou L pour l'eau et le gaz (pas de tableau d'énergie pour eux dans Gladys 5).
+  Le type de compteur change la catégorie des fonctionnalités : à choisir avant d'ajouter le compteur.
+- Fuite : l'index monte à chaque cycle pendant N h ; un cycle immobile est toléré, l'alerte cesse après
+  `max(15 min, 3 cycles)` sans hausse. Fondée sur le temps, pas sur le nombre de lectures : un sondage
+  REST plus rapide que le cycle relit le même relevé sans rien fausser.
+- Licence du firmware : « Dual Use License » (usage non commercial) ; aucun code du firmware n'est
+  inclus. L'icône de la couverture (`images/icon/watermeter.svg`) dérive d'un dessin du domaine public.
