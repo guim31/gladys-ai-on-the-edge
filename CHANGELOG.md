@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-12
+
 ### Added
 
 - Water, gas and electricity meters read by AI-on-the-edge-device, over MQTT
@@ -23,3 +25,6 @@ the notes of the version's GitHub Release.
 - Scene action "Meter reading", dashboard widget "Meters", action "Check the
   connection".
 - English, French, German and Spanish.
+
+[Unreleased]: https://github.com/guim31/gladys-ai-on-the-edge/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/guim31/gladys-ai-on-the-edge/releases/tag/v1.0.0
